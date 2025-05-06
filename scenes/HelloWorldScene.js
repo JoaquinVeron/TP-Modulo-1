@@ -12,6 +12,12 @@ export default class HelloWorldScene extends Phaser.Scene {
     // init variables
     // take data passed from other scenes
     // data object param {}
+
+    //----------Game Over----------
+    this.gameOver = false;
+
+    //----------Puntos----------
+    this.puntos = 0;
   }
 
   preload() {
@@ -25,11 +31,30 @@ export default class HelloWorldScene extends Phaser.Scene {
   }
 
   create() {
-    // create game objects
+    //----------JUEGO----------
+
+    //----------Fondo----------
     this.add.image(400, 300, "sky");
 
+    //----------Puntos----------
+
+    this.puntosText = this.add.text(16, 16, `Puntos: ${this.puntos}`, {
+      fontSize: "32px",
+      fill: "#000",
+    });
+
+    function updatePuntos() {
+      this.puntosText.setText(`Puntos: ${this.puntos}`);
+    }
+    this.time.addEvent({
+      callback: updatePuntos.bind(this),
+      loop: true,
+      delay: 10, // 1000 ms = 1 segundo
+    });
+
     //----------Jugador----------
-    this.player = this.physics.add.sprite(400, 300, "logo");
+
+    this.player = this.physics.add.sprite(50, 537, "logo");
 
     this.player.setScale(0.1);
     this.player.setCollideWorldBounds(true);
@@ -37,22 +62,62 @@ export default class HelloWorldScene extends Phaser.Scene {
     this.cursors = this.input.keyboard.createCursorKeys();
 
     //----------Plataformas----------
+
     this.plataformas = this.physics.add.staticGroup();
 
     this.plataformas.create(400, 600, "ground").setScale(2).refreshBody();
+    this.plataformas.create(150, 300, "ground").setScale(0.75).refreshBody();
+    this.plataformas.create(750, 150, "ground").setScale(0.5).refreshBody();
+    this.plataformas.create(650, 450, "ground").setScale(1).refreshBody();
 
     this.physics.add.collider(this.player, this.plataformas);
 
-    //----------JUEGO----------
+    //----------Formas----------
 
-    //----------Game Over----------
-    this.gameOver = false;
+    this.items = this.physics.add.group();
+    this.physics.add.collider(this.items, this.plataformas);
+
+    function crearFormas() {
+      const formas = ["diamond", "square", "triangle"];
+      const puntosPorForma = {
+        diamond: 10, // Valor de puntos para los diamantes
+        square: 5, // Valor de puntos para los cuadrados
+        triangle: 3, // Valor de puntos para los triángulos
+      };
+
+      const randomformas = Phaser.Utils.Array.GetRandom(formas);
+      const randomX = Phaser.Math.Between(50, 750);
+
+      // Crear la forma y asignar su valor de puntos
+      const item = this.items
+        .create(randomX, 25, randomformas)
+        .setScale(0.6)
+        .refreshBody();
+      item.puntos = puntosPorForma[randomformas]; // Asignar puntos como propiedad personalizada
+    }
+
+    function destroyItem(item) {
+      item.destroy();
+    }
+
+    crearFormas.call(this);
+    this.time.addEvent({
+      delay: 1000, // 1000 ms = 1 segundo
+      callback: crearFormas.bind(this),
+      loop: true,
+    });
+
+    this.physics.add.overlap(this.player, this.items, (player, item) => {
+      this.puntos += item.puntos; // Sumar los puntos del ítem recolectado
+      item.destroy(); // Destruir el ítem recolectado
+      this.puntosText.setText(`Puntos: ${this.puntos}`); // Actualizar el texto de puntos
+    });
 
     //---------Tiempo----------
-    this.tiempo = 10;
+    this.tiempo = 30;
     this.timeText = this.add.text(600, 16, `Tiempo: ${this.tiempo}`, {
-        fontSize: "32px",
-        fill: "#000",
+      fontSize: "32px",
+      fill: "#000",
     });
 
     this.time.addEvent({
@@ -73,7 +138,7 @@ export default class HelloWorldScene extends Phaser.Scene {
     });
 
     // Partículas
-    const emitter = this.add.particles(0, 0, "red", {
+    const emitter = this.add.particles(-15, 0, "red", {
       speed: 5,
       scale: { start: 1, end: 0 },
       blendMode: "ADD",
@@ -84,25 +149,32 @@ export default class HelloWorldScene extends Phaser.Scene {
 
   update() {
     // update s objects
+
+    //----------Controles----------
     if (this.cursors.left.isDown) {
       this.player.setVelocityX(-160);
-    
     } else if (this.cursors.right.isDown) {
       this.player.setVelocityX(160);
-
     } else {
-        this.player.setVelocityX(0);
-
-    } if (this.cursors.up.isDown && this.player.body.touching.down) {
+      this.player.setVelocityX(0);
+    }
+    if (this.cursors.up.isDown && this.player.body.touching.down) {
       this.player.setVelocityY(-330);
-}
+    }
+    //----------Game Over----------
+
     if (this.gameOver) {
       this.player.setVelocity(0, 0); // Detiene al jugador
       this.player.setTint(0xff0000); // Cambia el color del jugador a rojo
       this.physics.pause(); // Pausa la física del juego
+      this.time.removeAllEvents(); // Detiene el temporizador de creación de objetos
+      this.items.children.iterate((item) => {
+        item.setVelocity(0, 0); // Detiene la velocidad de los objetos
+      });
+
       this.gameovertext = this.add.text(100, 250, "Game Over", {
         fontSize: "100px",
-        fill: "red"
+        fill: "red",
       });
     }
   }
