@@ -18,6 +18,8 @@ export default class HelloWorldScene extends Phaser.Scene {
 
     //----------Puntos----------
     this.puntos = 0;
+
+    //----------  ----------
   }
 
   preload() {
@@ -28,12 +30,14 @@ export default class HelloWorldScene extends Phaser.Scene {
     this.load.image("diamond", "./public/assets/diamond.png");
     this.load.image("square", "./public/assets/square.png");
     this.load.image("triangle", "./public/assets/triangle.png");
+    this.load.image("katana", "./public/assets/katana.png");
   }
 
   create() {
     //----------JUEGO----------
 
     //----------Fondo----------
+
     this.add.image(400, 300, "sky");
 
     //----------Puntos----------
@@ -54,7 +58,7 @@ export default class HelloWorldScene extends Phaser.Scene {
 
     //----------Jugador----------
 
-    this.player = this.physics.add.sprite(50, 537, "logo");
+    this.player = this.physics.add.sprite(50, 543, "logo");
 
     this.player.setScale(0.1);
     this.player.setCollideWorldBounds(true);
@@ -75,14 +79,19 @@ export default class HelloWorldScene extends Phaser.Scene {
     //----------Formas----------
 
     this.items = this.physics.add.group();
-    this.physics.add.collider(this.items, this.plataformas);
+    this.physics.add.collider(this.items, this.plataformas, (item) => {
+      item.puntos -= 5 // Descontar 5 puntos
+      if (item.puntos <= 0) {
+       item.destroy(); // Destruir el ítem si los puntos llegan a 0
+      }
+   });
 
     function crearFormas() {
       const formas = ["diamond", "square", "triangle"];
       const puntosPorForma = {
-        diamond: 10, // Valor de puntos para los diamantes
-        square: 5, // Valor de puntos para los cuadrados
-        triangle: 3, // Valor de puntos para los triángulos
+        diamond: 16, // Valor de puntos para los diamantes
+        square: 11, // Valor de puntos para los cuadrados
+        triangle: 6, // Valor de puntos para los triángulos
       };
 
       const randomformas = Phaser.Utils.Array.GetRandom(formas);
@@ -92,17 +101,14 @@ export default class HelloWorldScene extends Phaser.Scene {
       const item = this.items
         .create(randomX, 25, randomformas)
         .setScale(0.6)
+        .setBounce(0.4)
         .refreshBody();
       item.puntos = puntosPorForma[randomformas]; // Asignar puntos como propiedad personalizada
     }
 
-    function destroyItem(item) {
-      item.destroy();
-    }
-
     crearFormas.call(this);
     this.time.addEvent({
-      delay: 1000, // 1000 ms = 1 segundo
+      delay: 500, // 500 ms = 0.5 segundos
       callback: crearFormas.bind(this),
       loop: true,
     });
@@ -111,10 +117,57 @@ export default class HelloWorldScene extends Phaser.Scene {
       this.puntos += item.puntos; // Sumar los puntos del ítem recolectado
       item.destroy(); // Destruir el ítem recolectado
       this.puntosText.setText(`Puntos: ${this.puntos}`); // Actualizar el texto de puntos
+      if (this.puntos >= 100 && !this.gameOver) {
+        this.gameOver = true;
+        this.scene.start("fin", { puntos: this.puntos, tiempoRestante: this.tiempo, victoria: true });
+      }
     });
 
+    //----------Katanas----------
+
+  this.katanas = this.physics.add.group();
+  this.physics.add.collider(this.katanas, this.plataformas, (katana) => {
+    // Incrementar el contador de rebotes
+    if (!katana.rebotes) {
+      katana.rebotes = 0; // Inicializar el contador si no existe
+    }
+    katana.rebotes++;
+    katana.setAngularVelocity(200); // Rotación constante (ajusta el valor según la velocidad deseada)
+
+    // Destruir la katana si rebota 3 veces
+    if (katana.rebotes >= 2) {
+      katana.destroy();
+    }
+  });
+
+  function crearKatanas() {
+    const randomX = Phaser.Math.Between(50, 750);
+
+    // Crear la katana
+    const katana = this.katanas
+      .create(randomX, 25, "katana")
+      .setScale(0.1)
+      .setBounce(0.4)
+      .refreshBody();
+
+      katana.rebotes = 0; // Inicializar el contador de rebotes
+  }
+
+  crearKatanas.call(this);
+  this.time.addEvent({
+    delay: 1000, // 1000 ms = 1 segundo
+    callback: crearKatanas.bind(this),
+    loop: true,
+  });
+
+  this.physics.add.overlap(this.player, this.katanas, (player, katana) => {
+    this.puntos -= 10; // Descontar puntos al recolectar una katana
+    katana.destroy(); // Destruir la katana recolectada
+    this.puntosText.setText(`Puntos: ${this.puntos}`); // Actualizar el texto de puntos
+  });
+
     //---------Tiempo----------
-    this.tiempo = 30;
+    this.tiempo = 30; // 30 segundos
     this.timeText = this.add.text(600, 16, `Tiempo: ${this.tiempo}`, {
       fontSize: "32px",
       fill: "#000",
@@ -123,14 +176,15 @@ export default class HelloWorldScene extends Phaser.Scene {
     this.time.addEvent({
       delay: 1000, // 1000 ms = 1 segundo
       callback: () => {
-        if (this.tiempo > 0) {
+        if (this.tiempo > 0 && !this.gameOver) {
           this.tiempo--;
           this.timeText.setText(`Tiempo: ${this.tiempo}`);
-        } else {
-          this.timeGO = true; // Marca el final del tiempo
+        } else if (this.tiempo <= 0 && !this.gameOver) {
+          this.timeGO = true;
           this.timeText.setText(`Time's Up!`);
           this.timeText.setColor("red");
           this.gameOver = true;
+          this.scene.start("fin", { puntos: this.puntos, tiempoRestante: this.tiempo, victoria: false });
         }
       },
       callbackScope: this,
@@ -151,21 +205,36 @@ export default class HelloWorldScene extends Phaser.Scene {
     // update s objects
 
     //----------Controles----------
+    
     if (this.cursors.left.isDown) {
-      this.player.setVelocityX(-160);
+        this.player.setVelocityX(-160);
+        this.player.setAngularVelocity(-400); // Rotar hacia la izquierda
     } else if (this.cursors.right.isDown) {
-      this.player.setVelocityX(160);
+        this.player.setVelocityX(160);
+        this.player.setAngularVelocity(400); // Rotar hacia la derecha
     } else {
-      this.player.setVelocityX(0);
+        this.player.setVelocityX(0);
+        if (this.player.body.touching.down) {
+            this.player.setAngularVelocity(0); // Detener la rotación si está en el suelo y no se mueve
+        }
     }
+
     if (this.cursors.up.isDown && this.player.body.touching.down) {
-      this.player.setVelocityY(-330);
+        this.player.setVelocityY(-330);
     }
+
+    if (!this.player.body.touching.down) {
+        if (this.player.body.velocity.x !== 0 && this.cursors.left.isDown) {
+            this.player.setAngularVelocity(-400); // Rotar hacia la izquierda mientras está en el aire
+        } else if (this.player.body.velocity.x !== 0 && this.cursors.right.isDown) {
+            this.player.setAngularVelocity(400); // Rotar hacia la derecha mientras está en el aire
+        }
+    }
+    
     //----------Game Over----------
 
     if (this.gameOver) {
       this.player.setVelocity(0, 0); // Detiene al jugador
-      this.player.setTint(0xff0000); // Cambia el color del jugador a rojo
       this.physics.pause(); // Pausa la física del juego
       this.time.removeAllEvents(); // Detiene el temporizador de creación de objetos
       this.items.children.iterate((item) => {
