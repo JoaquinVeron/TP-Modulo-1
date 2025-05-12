@@ -99,7 +99,7 @@ export default class HelloWorldScene extends Phaser.Scene {
 
       // Crear la forma y asignar su valor de puntos
       const item = this.items
-        .create(randomX, 25, randomformas)
+        .create(randomX, -25, randomformas)
         .setScale(0.6)
         .setBounce(0.4)
         .refreshBody();
@@ -145,7 +145,7 @@ export default class HelloWorldScene extends Phaser.Scene {
 
     // Crear la katana
     const katana = this.katanas
-      .create(randomX, 25, "katana")
+      .create(randomX, -25, "katana")
       .setScale(0.1)
       .setBounce(0.4)
       .refreshBody();
